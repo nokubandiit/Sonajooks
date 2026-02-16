@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="et">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sõnajooks – prototüüp</title>
+  <style>
+    :root { --w: 420px; --h: 720px; }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: #0b0f19; color: #e8ecff; display: grid; place-items: center; height: 100vh;
+    }
+    .wrap { width: min(var(--w), 92vw); }
+    .hud { display:flex; gap:12px; align-items:center; justify-content:space-between; margin: 8px 0 12px; }
+    .pill { padding: 8px 10px; border: 1px solid rgba(255,255,255,.15); border-radius: 999px; background: rgba(255,255,255,.06); }
+    .question { font-weight: 700; }
+    .game {
+      position: relative; width: 100%; height: min(var(--h), 78vh);
+      border-radius: 18px; overflow: hidden;
+      border: 1px solid rgba(255,255,255,.15);
+      background: radial-gradient(1200px 600px at 50% 20%, rgba(120,170,255,.20), transparent 55%),
+                  linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+    }
+    .lanes {
+      position:absolute; inset:0; display:grid; grid-template-columns: repeat(3, 1fr);
+      opacity: .25; pointer-events:none;
+    }
+    .laneLine { border-left: 1px dashed rgba(255,255,255,.25); }
+    .laneLine:first-child { border-left: none; }
+
+    .player {
+      position:absolute; bottom: 90px;
+      width: 64px; height: 64px; border-radius: 18px;
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.25);
+      display:grid; place-items:center;
+      transform: translateX(-50%);
+      left: 50%;
+      transition: left 110ms ease-out;
+      box-shadow: 0 18px 40px rgba(0,0,0,.35);
+      user-select:none;
+    }
+    .player span { font-size: 28px; }
+
+    .gateRow {
+      position:absolute; top: -120px; left:0; right:0;
+      display:grid; grid-template-columns: repeat(3, 1fr);
+      gap: 10px; padding: 0 12px;
+      transform: translateY(0);
+      will-change: transform;
+    }
+    .gate {
+      height: 92px; border-radius: 16px;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.20);
+      display:flex; align-items:center; justify-content:center;
+      text-align:center; padding: 0 10px;
+      font-weight: 700; font-size: 16px;
+      box-shadow: 0 12px 24px rgba(0,0,0,.25);
+      user-select:none;
+    }
+    .gate small { display:block; opacity: .8; font-weight:600; }
+    .gate.good { outline: 2px solid rgba(70,255,160,.55); }
+    .gate.bad  { outline: 2px solid rgba(255,90,120,.55); }
+
+    .toast {
+      position:absolute; left:50%; top: 18px; transform: translateX(-50%);
+      padding: 10px 12px; border-radius: 12px;
+      background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.18);
+      opacity: 0; transition: opacity 140ms ease;
+      pointer-events:none;
+      font-weight: 700;
+    }
+    .toast.show { opacity: 1; }
+
+    .overlay {
+      position:absolute; inset:0; display:grid; place-items:center;
+      background: rgba(0,0,0,.55);
+      opacity:0; pointer-events:none; transition: opacity 180ms ease;
+    }
+    .overlay.show { opacity:1; pointer-events:auto; }
+    .card {
+      width: min(340px, 88%); border-radius: 18px;
+      background: rgba(255,255,255,.10); border: 1px solid rgba(255,255,255,.18);
+      padding: 16px; text-align:center;
+      box-shadow: 0 20px 60px rgba(0,0,0,.45);
+    }
+    .card h2 { margin: 6px 0 8px; }
+    .card p { margin: 6px 0 12px; opacity:.9; }
+    button {
+      appearance:none; border: 1px solid rgba(255,255,255,.22);
+      background: rgba(255,255,255,.10); color: #e8ecff;
+      padding: 10px 12px; border-radius: 12px; font-weight: 800;
+      cursor:pointer;
+    }
+    button:active { transform: translateY(1px); }
+
+    .help { margin-top: 10px; opacity: .8; font-size: 13px; line-height: 1.35; }
+    .kbd { padding: 1px 6px; border: 1px solid rgba(255,255,255,.25); border-radius: 8px; background: rgba(255,255,255,.06); }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="hud">
+      <div class="pill">Skoor: <b id="score">0</b> · Combo: <b id="combo">0</b></div>
+      <div class="pill">Elud: <b id="lives">3</b></div>
+    </div>
+
+    <div class="pill question">Küsimus: <span id="question">—</span></div>
+
+    <div class="game" id="game" aria-label="Sõnajooks">
+      <div class="lanes">
+        <div class="laneLine"></div><div class="laneLine"></div><div class="laneLine"></div>
+      </div>
+
+      <div class="toast" id="toast">—</div>
+
+      <div class="player" id="player"><span>🏃</span></div>
+
+      <div class="overlay show" id="overlay">
+        <div class="card">
+          <h2 id="ovTitle">Sõnajooks</h2>
+          <p id="ovText">Vajuta Start. Vali õige värav, liikudes vasakule/paremale.</p>
+          <button id="startBtn">Start</button>
+          <div class="help">
+            Klahvid: <span class="kbd">←</span> <span class="kbd">→</span> või <span class="kbd">A</span> <span class="kbd">D</span> ·
+            Mobiilis: swipe vasak/parem
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // ---- Andmed: asenda oma sõnavaraga ----
+  // question = eesti, correct = inglise (näiteks)
+  const BANK = [
+    { question: "koer", correct: "dog", wrong: ["cat", "house", "bird"] },
+    { question: "kass", correct: "cat", wrong: ["dog", "milk", "tree"] },
+    { question: "õun",  correct: "apple", wrong: ["orange", "table", "shoe"] },
+    { question: "auto", correct: "car", wrong: ["bike", "book", "water"] },
+    { question: "maja", correct: "house", wrong: ["mouse", "rain", "chair"] },
+    { question: "vesi", correct: "water", wrong: ["fire", "bread", "sun"] },
+    { question: "leib", correct: "bread", wrong: ["head", "stone", "glass"] },
+    { question: "päike", correct: "sun", wrong: ["moon", "star", "cloud"] },
+  ];
+
+  // ---- Elementid ----
+  const gameEl = document.getElementById("game");
+  const playerEl = document.getElementById("player");
+  const overlayEl = document.getElementById("overlay");
+  const startBtn = document.getElementById("startBtn");
+  const ovTitle = document.getElementById("ovTitle");
+  const ovText = document.getElementById("ovText");
+  const toastEl = document.getElementById("toast");
+
+  const scoreEl = document.getElementById("score");
+  const comboEl = document.getElementById("combo");
+  const livesEl = document.getElementById("lives");
+  const questionEl = document.getElementById("question");
+
+  // ---- Mängu olek ----
+  let lane = 1; // 0..2
+  let score = 0;
+  let combo = 0;
+  let lives = 3;
+
+  let running = false;
+  let activeRow = null;
+  let activeCorrectLane = 1;
+
+  // kiirus (px per frame-ish, teeme time-based)
+  let speed = 260; // px/s
+  let round = 0;
+
+  // requestAnimationFrame loop
+  let lastTs = 0;
+
+  // ---- Util ----
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  function setLane(newLane) {
+    lane = clamp(newLane, 0, 2);
+    // 3 veergu => 16.666%, 50%, 83.333%
+    const leftPct = lane === 0 ? 16.666 : (lane === 1 ? 50 : 83.333);
+    playerEl.style.left = leftPct + "%";
+  }
+
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function pickQuestion() {
+    // lihtne: suvaline
+    const item = BANK[Math.floor(Math.random() * BANK.length)];
+    // vali 3 varianti (2 vale + 1 õige) 3 rajale
+    const wrongs = shuffle(item.wrong).slice(0, 2);
+    const options = shuffle([item.correct, ...wrongs]); // 3 kokku
+    const correctLane = options.indexOf(item.correct);
+
+    return { item, options, correctLane };
+  }
+
+  function showToast(text, ok=true) {
+    toastEl.textContent = text;
+    toastEl.style.borderColor = ok ? "rgba(70,255,160,.45)" : "rgba(255,90,120,.45)";
+    toastEl.classList.add("show");
+    window.clearTimeout(showToast._t);
+    showToast._t = window.setTimeout(() => toastEl.classList.remove("show"), 650);
+  }
+
+  function updateHud() {
+    scoreEl.textContent = String(score);
+    comboEl.textContent = String(combo);
+    livesEl.textContent = String(lives);
+  }
+
+  function clearRow() {
+    if (activeRow) activeRow.remove();
+    activeRow = null;
+  }
+
+  function spawnRow() {
+    clearRow();
+
+    const { item, options, correctLane } = pickQuestion();
+    activeCorrectLane = correctLane;
+    questionEl.textContent = item.question;
+
+    const row = document.createElement("div");
+    row.className = "gateRow";
+    row.dataset.y = "0";
+
+    for (let i = 0; i < 3; i++) {
+      const gate = document.createElement("div");
+      gate.className = "gate";
+      gate.textContent = options[i];
+      row.appendChild(gate);
+    }
+
+    gameEl.appendChild(row);
+    activeRow = row;
+
+    // iga 10 raundi järel kiirenda veidi
+    round++;
+    if (round % 10 === 0) speed = Math.min(520, speed + 30);
+  }
+
+  function resolveRow() {
+    // kontroll: kas mängija lane == correctLane
+    const ok = lane === activeCorrectLane;
+    const gates = activeRow.querySelectorAll(".gate");
+    gates.forEach((g, idx) => g.classList.add(idx === activeCorrectLane ? "good" : "bad"));
+
+    if (ok) {
+      combo++;
+      const gained = 10 + Math.min(20, combo); // väike combo-boonus
+      score += gained;
+      showToast("Õige! +" + gained, true);
+    } else {
+      combo = 0;
+      lives--;
+      showToast("Vale! -1 elu", false);
+    }
+
+    updateHud();
+
+    if (lives <= 0) {
+      gameOver();
+      return;
+    }
+
+    // lühike paus ja järgmine rida
+    running = false;
+    window.setTimeout(() => {
+      if (lives > 0) {
+        spawnRow();
+        running = true;
+      }
+    }, 420);
+  }
+
+  function gameOver() {
+    running = false;
+    clearRow();
+    ovTitle.textContent = "Game Over";
+    ovText.textContent = `Skoor: ${score} · Kiirus: ${Math.round(speed)} px/s · Vastuseid: ${round}`;
+    startBtn.textContent = "Uuesti";
+    overlayEl.classList.add("show");
+  }
+
+  function resetGame() {
+    score = 0; combo = 0; lives = 3;
+    speed = 260; round = 0;
+    setLane(1);
+    updateHud();
+    questionEl.textContent = "—";
+    clearRow();
+    lastTs = 0;
+  }
+
+  // ---- Loop: liigutab gateRow allapoole ----
+  function tick(ts) {
+    requestAnimationFrame(tick);
+    if (!running || !activeRow) { lastTs = ts; return; }
+
+    if (!lastTs) lastTs = ts;
+    const dt = (ts - lastTs) / 1000;
+    lastTs = ts;
+
+    const y = Number(activeRow.dataset.y || "0") + speed * dt;
+    activeRow.dataset.y = String(y);
+    activeRow.style.transform = `translateY(${y}px)`;
+
+    // kui rida jõuab mängija kõrgusele -> resolve
+    // gameEl kõrgus varieerub, võtame "triggerY" ligikaudu 520px
+    const triggerY = gameEl.clientHeight - 210;
+    if (y >= triggerY) {
+      resolveRow();
+    }
+  }
+
+  // ---- Input: klaviatuur ----
+  window.addEventListener("keydown", (e) => {
+    if (overlayEl.classList.contains("show")) return;
+    if (e.key === "ArrowLeft" || e.key.toLowerCase() === "a") setLane(lane - 1);
+    if (e.key === "ArrowRight" || e.key.toLowerCase() === "d") setLane(lane + 1);
+  });
+
+  // ---- Input: swipe mobiilil ----
+  let touchX = null;
+  gameEl.addEventListener("touchstart", (e) => {
+    if (overlayEl.classList.contains("show")) return;
+    touchX = e.changedTouches[0].clientX;
+  }, { passive: true });
+
+  gameEl.addEventListener("touchend", (e) => {
+    if (overlayEl.classList.contains("show")) return;
+    if (touchX == null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 30) setLane(lane + (dx > 0 ? 1 : -1));
+    touchX = null;
+  }, { passive: true });
+
+  // ---- Start / restart ----
+  startBtn.addEventListener("click", () => {
+    overlayEl.classList.remove("show");
+    resetGame();
+    spawnRow();
+    running = true;
+  });
+
+  // init
+  setLane(1);
+  updateHud();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
