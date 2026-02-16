@@ -248,11 +248,6 @@
     gameEl.appendChild(row);
     activeRow = row;
 
-    // iga 10 raundi järel kiirenda veidi
-    round++;
-    if (round % 10 === 0) speed = Math.min(520, speed + 30);
-  }
-
   function resolveRow() {
     // kontroll: kas mängija lane == correctLane
     const ok = lane === activeCorrectLane;
